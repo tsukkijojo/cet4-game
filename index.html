@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CET-4 Vocabulary Quest</title>
+<style>
+:root{--bg:#f3f6fb;--panel:#fff;--ink:#172033;--muted:#718096;--primary:#5267e8;--good:#16865b;--bad:#d94b55;--line:#e5eaf2}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:28px 16px;background:radial-gradient(circle at top left,#e5eaff,transparent 38%),var(--bg);color:var(--ink);font-family:Inter,"Microsoft YaHei",sans-serif}
+.app{max-width:850px;margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+h1{margin:0;font-size:clamp(24px,4vw,34px)}.subtitle{color:var(--muted);margin-top:6px}.stats{display:flex;gap:10px;flex-wrap:wrap}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 14px;min-width:92px}.stat b{display:block;font-size:20px}.stat small{color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 12px 35px #24345b0b}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+button,select,input{font:inherit;border-radius:11px;border:1px solid var(--line);padding:11px 14px;background:white;color:var(--ink)}
+button{cursor:pointer;transition:.15s}button:hover{transform:translateY(-1px);border-color:var(--primary)}
+button.active,.primary{background:var(--primary);color:white;border-color:var(--primary)}button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+#card{text-align:center;padding:36px 12px 26px;min-height:250px}.word{font-size:clamp(36px,7vw,54px);font-weight:800;letter-spacing:-1px}
+.phonetic{color:var(--muted);margin:9px 0 18px}.meaning{font-size:23px;font-weight:650;margin:18px 0 10px}
+.example{color:var(--muted);line-height:1.7;max-width:560px;margin:auto}.actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:22px}
+.progress{height:8px;background:#edf0f6;border-radius:20px;overflow:hidden;margin:14px 0 20px}.progress span{display:block;height:100%;width:0;background:var(--primary);transition:width .2s}
+#quizArea,#typingArea{display:none}.question{font-size:22px;font-weight:700;margin:18px 0}.options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.option{text-align:left;min-height:52px}.option.correct{border-color:var(--good);background:#e9f8f1}.option.wrong{border-color:var(--bad);background:#fff0f0}
+.feedback{min-height:28px;margin-top:14px;font-weight:650}#answerInput{width:100%;margin:12px 0}.note{color:var(--muted);font-size:13px;line-height:1.6;margin-top:18px}
+@media(max-width:560px){header{align-items:flex-start;flex-direction:column}.options{grid-template-columns:1fr}.panel{padding:16px}}
+</style>
+</head>
+<body>
+<main class="app">
+<header>
+  <div><h1>🎯 CET-4 Vocabulary Quest</h1><div class="subtitle">每天一点点，把四级词汇变成长期记忆。</div></div>
+  <div class="stats">
+    <div class="stat"><b id="knownCount">0</b><small>已掌握</small></div>
+    <div class="stat"><b id="streakCount">0</b><small>连续答对</small></div>
+    <div class="stat"><b id="totalCount">0</b><small>累计答题</small></div>
+  </div>
+</header>
+<section class="panel">
+  <div class="toolbar">
+    <button class="mode active" data-mode="flash">单词卡</button>
+    <button class="mode" data-mode="choice">选择题</button>
+    <button class="mode" data-mode="typing">拼写挑战</button>
+    <select id="filter"><option value="all">全部单词</option><option value="new">未掌握</option><option value="known">已掌握</option></select>
+    <button id="shuffleBtn">随机排序</button>
+    <button id="resetBtn">重置进度</button>
+  </div>
+  <div class="progress"><span id="progressBar"></span></div>
+  <div id="flashArea">
+    <div id="card">
+      <div class="word" id="word">abandon</div><div class="phonetic" id="phonetic">/əˈbændən/</div>
+      <div class="meaning" id="meaning" hidden></div><div class="example" id="example" hidden></div>
+    </div>
+    <div class="actions">
+      <button id="revealBtn" class="primary">显示释义</button><button id="unknownBtn">还不认识</button>
+      <button id="knownBtn">我掌握了 ✓</button><button id="nextBtn">下一个 →</button>
+    </div>
+  </div>
+  <div id="quizArea">
+    <div class="question" id="quizQuestion"></div><div class="options" id="options"></div>
+    <div class="feedback" id="quizFeedback"></div><div class="actions"><button class="primary" id="nextQuizBtn">下一题 →</button></div>
+  </div>
+  <div id="typingArea">
+    <div class="question" id="typingQuestion"></div><input id="answerInput" type="text" autocomplete="off" placeholder="输入对应的英文单词">
+    <div class="actions"><button class="primary" id="checkBtn">检查答案</button><button id="nextTypingBtn">下一题 →</button></div>
+    <div class="feedback" id="typingFeedback"></div>
+  </div>
+  <div class="note">当前为可扩充的四级词汇样例库，不代表完整四级大纲。学习进度保存在本浏览器中；清除浏览器网站数据可能会删除进度。</div>
+</section>
+</main>
+<script>
+"use strict";
+const words=[
+{w:"abandon",p:"/əˈbændən/",m:"v. 放弃；抛弃",e:"Never abandon your goals because of temporary difficulties."},
+{w:"ability",p:"/əˈbɪləti/",m:"n. 能力；才能",e:"The job requires the ability to work under pressure."},
+{w:"abroad",p:"/əˈbrɔːd/",m:"adv. 在国外；到国外",e:"She hopes to study abroad next year."},
+{w:"absorb",p:"/əbˈzɔːb/",m:"v. 吸收；理解",e:"Plants absorb water through their roots."},
+{w:"abstract",p:"/ˈæbstrækt/",m:"adj. 抽象的；n. 摘要",e:"The lecture introduced an abstract idea."},
+{w:"academic",p:"/ˌækəˈdemɪk/",m:"adj. 学术的；n. 学者",e:"He is interested in academic research."},
+{w:"access",p:"/ˈækses/",m:"n. 使用权；通道；v. 获取",e:"Students have access to the online library."},
+{w:"accompany",p:"/əˈkʌmpəni/",m:"v. 陪伴；伴随",e:"Lightning was accompanied by loud thunder."},
+{w:"accomplish",p:"/əˈkʌmplɪʃ/",m:"v. 完成；实现",e:"With effort, you can accomplish your goal."},
+{w:"accurate",p:"/ˈækjərət/",m:"adj. 准确的；精确的",e:"Please provide accurate information."},
+{w:"achieve",p:"/əˈtʃiːv/",m:"v. 达到；实现",e:"Practice helps you achieve better results."},
+{w:"adapt",p:"/əˈdæpt/",m:"v. 适应；改编",e:"It takes time to adapt to college life."},
+{w:"adequate",p:"/ˈædɪkwət/",m:"adj. 足够的；适当的",e:"Make sure you get adequate sleep."},
+{w:"adjust",p:"/əˈdʒʌst/",m:"v. 调整；适应",e:"You can adjust the settings later."},
+{w:"admire",p:"/ədˈmaɪər/",m:"v. 钦佩；欣赏",e:"I admire her courage and patience."},
+{w:"advance",p:"/ədˈvæns/",m:"n./v. 进步；前进",e:"Technology continues to advance rapidly."},
+{w:"advantage",p:"/ədˈvæntɪdʒ/",m:"n. 优势；有利条件",e:"Good communication is an advantage."},
+{w:"affect",p:"/əˈfekt/",m:"v. 影响；感动",e:"Lack of sleep can affect your memory."},
+{w:"afford",p:"/əˈfɔːrd/",m:"v. 买得起；承担得起",e:"Many students cannot afford a new laptop."},
+{w:"ambition",p:"/æmˈbɪʃən/",m:"n. 抱负；雄心",e:"Her ambition is to become an engineer."},
+{w:"analyze",p:"/ˈænəlaɪz/",m:"v. 分析",e:"We need to analyze the results carefully."},
+{w:"approach",p:"/əˈproʊtʃ/",m:"n. 方法；接近；v. 靠近",e:"We need a different approach to the problem."},
+{w:"available",p:"/əˈveɪləbl/",m:"adj. 可获得的；有空的",e:"The information is available online."},
+{w:"benefit",p:"/ˈbenɪfɪt/",m:"n. 好处；v. 受益",e:"Regular exercise benefits your health."},
+{w:"challenge",p:"/ˈtʃælɪndʒ/",m:"n. 挑战；v. 向……挑战",e:"Learning a language is a long-term challenge."},
+{w:"community",p:"/kəˈmjuːnəti/",m:"n. 社区；群体",e:"The project will benefit the local community."},
+{w:"concentrate",p:"/ˈkɑːnsntreɪt/",m:"v. 集中注意力；聚集",e:"It is difficult to concentrate in a noisy room."},
+{w:"consider",p:"/kənˈsɪdər/",m:"v. 考虑；认为",e:"Please consider all the possibilities."},
+{w:"consume",p:"/kənˈsuːm/",m:"v. 消耗；消费",e:"This device consumes very little energy."},
+{w:"contribute",p:"/kənˈtrɪbjuːt/",m:"v. 贡献；促成",e:"Everyone can contribute to the team."}
+];
+const $=id=>document.getElementById(id);
+let saved={};try{saved=JSON.parse(localStorage.getItem("cet4-progress")||"{}")||{}}catch(e){}
+let known=new Set(saved.known||[]),total=saved.total||0,streak=saved.streak||0;
+let mode="flash",index=0,deck=[...words],answered=false;
+function save(){try{localStorage.setItem("cet4-progress",JSON.stringify({known:[...known],total,streak}))}catch(e){}updateStats()}
+function updateStats(){$("knownCount").textContent=known.size;$("streakCount").textContent=streak;$("totalCount").textContent=total;$("progressBar").style.width=(known.size/words.length*100)+"%"}
+function current(){return deck[index%deck.length]}
+function renderCard(){
+ if(!deck.length){$("word").textContent="当前筛选下没有单词";$("phonetic").textContent="";$("meaning").hidden=$("example").hidden=true;return}
+ const x=current();$("word").textContent=x.w;$("phonetic").textContent=x.p;$("meaning").textContent=x.m;$("example").textContent=x.e;
+ $("meaning").hidden=$("example").hidden=true;$("revealBtn").textContent="显示释义";updateStats()
+}
+function moveNext(){if(!deck.length)return;index=(index+1)%deck.length;if(mode==="flash")renderCard();else if(mode==="choice")newChoice();else newTyping()}
+function makeDeck(){const f=$("filter").value;deck=words.filter(x=>f==="all"||(f==="known"?known.has(x.w):!known.has(x.w)));index=0;if(mode==="flash")renderCard();else if(mode==="choice")newChoice();else newTyping()}
+function reveal(){$("meaning").hidden=$("example").hidden=false;$("revealBtn").textContent="已显示"}
+function markKnown(value){if(!deck.length)return;value?known.add(current().w):known.delete(current().w);save();moveNext()}
+function switchMode(next){mode=next;document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));$("flashArea").style.display=mode==="flash"?"block":"none";$("quizArea").style.display=mode==="choice"?"block":"none";$("typingArea").style.display=mode==="typing"?"block":"none";makeDeck()}
+function shuffled(a){const c=[...a];for(let i=c.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[c[i],c[j]]=[c[j],c[i]]}return c}
+function newChoice(){
+ if(!deck.length){$("quizQuestion").textContent="当前筛选下没有单词";$("options").innerHTML="";return}
+ answered=false;const item=current();$("quizQuestion").textContent=`“${item.w}” 的意思是？`;$("quizFeedback").textContent="";
+ const opts=shuffled([item,...shuffled(words.filter(x=>x.w!==item.w)).slice(0,3)]);$("options").innerHTML="";
+ opts.forEach(o=>{const b=document.createElement("button");b.className="option";b.textContent=o.m;b.addEventListener("click",()=>chooseAnswer(b,o.w===item.w,item));$("options").appendChild(b)})
+}
+function chooseAnswer(btn,correct,item){
+ if(answered)return;answered=true;total++;
+ if(correct){streak++;known.add(item.w);btn.classList.add("correct")}
+ else{streak=0;btn.classList.add("wrong");[...$("options").children].forEach(b=>{if(b.textContent===item.m)b.classList.add("correct")})}
+ $("quizFeedback").textContent=correct?"回答正确！":`正确答案：${item.m}`;save()
+}
+function newTyping(){if(!deck.length){$("typingQuestion").textContent="当前筛选下没有单词";$("answerInput").value="";return}answered=false;$("typingQuestion").textContent=`请拼写：${current().m}`;$("answerInput").value="";$("typingFeedback").textContent=""}
+function checkTyping(){if(answered||!deck.length)return;answered=true;total++;const ok=$("answerInput").value.trim().toLowerCase()===current().w.toLowerCase();if(ok){streak++;known.add(current().w)}else streak=0;$("typingFeedback").textContent=ok?"拼写正确！":`正确拼写：${current().w}`;save()}
+document.querySelectorAll(".mode").forEach(b=>b.addEventListener("click",()=>switchMode(b.dataset.mode)));
+$("revealBtn").addEventListener("click",reveal);$("unknownBtn").addEventListener("click",()=>markKnown(false));$("knownBtn").addEventListener("click",()=>markKnown(true));$("nextBtn").addEventListener("click",moveNext);
+$("filter").addEventListener("change",makeDeck);$("shuffleBtn").addEventListener("click",()=>{deck=shuffled(deck);index=0;if(mode==="flash")renderCard();else if(mode==="choice")newChoice();else newTyping()});
+$("nextQuizBtn").addEventListener("click",moveNext);$("checkBtn").addEventListener("click",checkTyping);$("nextTypingBtn").addEventListener("click",moveNext);
+$("answerInput").addEventListener("keydown",e=>{if(e.key==="Enter")checkTyping()});
+$("resetBtn").addEventListener("click",()=>{if(confirm("确定清除已掌握记录和答题统计吗？")){known.clear();total=0;streak=0;save();makeDeck()}});
+updateStats();renderCard();
+</script>
+</body>
+</html>
